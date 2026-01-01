@@ -1,22 +1,36 @@
 import { test, expect } from '@playwright/test';
 
-test('amazon add to cart', async ({ page, context }) => {
-  await page.goto('https://www.amazon.in/');
+test('amazon add to cart', async ({ page }) => {
 
-  await page.getByRole('link', { name: 'Fashion' }).click();
-  await page.getByRole('link', { name: 'Luggage & Bags' }).click();
- 
-  const productLink = page.getByRole('link', {
-  name: 'WildHorn Rfid Protected Leather Wallet For Men, Brown'
-});
+  await page.goto('https://www.amazon.in/', { waitUntil: 'domcontentloaded' });
 
-await Promise.all([
-  page.waitForURL(/\/dp\/|\/gp\/product\//),   // 👈 wait for product page
-  productLink.click()
-]);
+  // Close cookies / location popup if present
+  const continueBtn = page.locator('input[name="accept"]');
+  if (await continueBtn.isVisible().catch(() => false)) {
+    await continueBtn.click();
+  }
 
-// Now you are guaranteed on product page
-//await page.getByRole('button', { name: 'Add to Cart' }).click();
-await page.locator('#add-to-cart-button').click();
-await page.getByRole('link', { name: 'Item in Cart' }).click();
+  // Sometimes Amazon shows location popup
+  const locationPopup = page.locator('#nav-global-location-popover-link');
+  if (await locationPopup.isVisible().catch(() => false)) {
+    await page.keyboard.press('Escape');
+  }
+
+  // Go directly to search instead of unstable menu
+  await page.locator('#twotabsearchtextbox').fill('WildHorn leather wallet for men');
+  await page.keyboard.press('Enter');
+
+  // Click first product
+  const firstProduct = page.locator('[data-component-type="s-search-result"] h2 a').first();
+  await Promise.all([
+    page.waitForURL(/\/dp\//),
+    firstProduct.click()
+  ]);
+
+  // Add to cart
+  await page.locator('#add-to-cart-button').waitFor({ state: 'visible' });
+  await page.locator('#add-to-cart-button').click();
+
+  // Verify item added
+  await expect(page.locator('#sw-gtc')).toBeVisible();
 });
